@@ -83,6 +83,12 @@
     );
     if (toggles.length) console.table(toggles.map(({ element, ...row }) => row));
     else console.log(`${LOG_PREFIX} no menu buttons matched`, dom.MENU_TOGGLE);
+
+    const candidates = dom.findMenuToggles(root);
+    console.log(
+      `${LOG_PREFIX} candidates after climbing: ${candidates.length}`,
+      candidates.map((t) => t.getAttribute('aria-label') || t.textContent.trim() || '(unlabelled)')
+    );
   }
 
   function warnOnce(message, detail) {

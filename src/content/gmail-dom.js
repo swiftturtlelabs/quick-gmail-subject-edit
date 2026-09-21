@@ -67,23 +67,41 @@ window.GmailSubjectEditor = window.GmailSubjectEditor || {};
     return Array.from(roots);
   }
 
-  // Only the toggles above the body, which is where the recipient-line caret
-  // lives, and with no fallback to anything else.
+  // How far above the compose root to look for the caret, and how many of the
+  // nearest candidates to try once found.
+  const MAX_CLIMB = 6;
+  const MAX_CANDIDATES = 3;
+
+  // The recipient-line caret that opens the response-type menu.
   //
-  // Below the body is the send and formatting toolbar, whose buttons attach
-  // files, open Drive and insert photos. Activating one of those is not a
-  // harmless wrong guess. Early in a compose's life the toolbar is rendered
-  // while the caret is not, so any fallback to "try everything" fires exactly
-  // when it does the most damage. Finding nothing here means "not ready yet",
-  // and the caller retries.
+  // It is not inside the compose root. For an inline reply, closest() lands on
+  // table.iN, which contains the body and the send toolbar but not the
+  // recipient row, so every menu button in there is one of Attach files,
+  // Insert photo, Insert files using Drive and friends. Activating those is
+  // how you end up with file pickers instead of a subject field, so nothing
+  // below the body is ever a candidate.
+  //
+  // Rather than naming the container the caret does live in, which would be
+  // another obfuscated class waiting to change, climb until an ancestor holds
+  // a menu button positioned above the body, then take the ones nearest to it.
+  // Nearest matters: climb far enough and the buttons on the other messages in
+  // the thread also qualify, and those are not what we want to be opening.
   function findMenuToggles(root) {
-    const scope = root || document;
-    const body = scope.querySelector(COMPOSE_BODY);
+    const body = (root || document).querySelector(COMPOSE_BODY);
     if (!body) return [];
-    return Array.from(scope.querySelectorAll(MENU_TOGGLE)).filter(
-      (toggle) =>
-        body.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_PRECEDING
-    );
+
+    let scope = root;
+    for (let i = 0; scope && i < MAX_CLIMB; i += 1) {
+      const above = Array.from(scope.querySelectorAll(MENU_TOGGLE)).filter(
+        (toggle) =>
+          body.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_PRECEDING
+      );
+      // querySelectorAll gives document order, so the last entries are the
+      // ones closest to the body.
+      if (above.length > 0) return above.reverse().slice(0, MAX_CANDIDATES);
+      scope = scope.parentElement;
+    }
+    return [];
   }
 
   // Normalised so that reflow-driven whitespace churn does not read as an edit.
