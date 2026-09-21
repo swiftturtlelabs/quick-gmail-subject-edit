@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Quick Gmail Subject Edit",
+  "version": "0.1.0",
+  "description": "Opens Gmail's Edit subject action automatically when you start a reply, so the subject is editable without using the menu.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": [
+        "src/content/gmail-dom.js",
+        "src/content/reveal-subject.js",
+        "src/content/index.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

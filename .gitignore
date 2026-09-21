@@ -1,0 +1,2 @@
+# Store upload packages are build output, rebuilt from source on demand.
+*.zip
