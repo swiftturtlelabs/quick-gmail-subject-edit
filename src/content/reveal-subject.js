@@ -173,14 +173,23 @@
       return false;
     }
 
-    // Gmail's Edit subject rebuilds the reply as a compose. It carries the
-    // quoted thread across, but anything the user has typed is theirs to lose,
-    // so we only ever act on a compose they have not written in yet. Quoted
-    // and forwarded blocks do not count as written in, otherwise every forward
-    // would be skipped for arriving with its body already full.
-    if (!dom.isUntouched(root)) {
+    // Gmail's Edit subject rebuilds the compose. It carries the quoted thread
+    // across, but anything the user has typed is theirs to lose, so we only
+    // ever act on a compose they have not written in yet.
+    //
+    // Recognising Gmail's own content by class does not survive contact with
+    // forwards: the forwarded message is dropped straight into the body and is
+    // not necessarily tagged with the gmail_quote classes while it is still in
+    // the editor. So the primary test is a baseline instead. Whatever is in
+    // the body the first time we see the compose is Gmail's, because we see it
+    // within a few hundred milliseconds of it opening. If nothing has changed
+    // since then, the user has not written anything.
+    const text = dom.bodyText(root);
+    if (s.baseline === undefined) s.baseline = text;
+
+    if (text !== s.baseline && !dom.isUntouched(root)) {
       s.done = true;
-      log('skipping: there is already typed content in the body', root);
+      log('skipping: the body has been edited since it opened', root);
       return false;
     }
 

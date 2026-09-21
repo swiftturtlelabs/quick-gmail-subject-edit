@@ -76,10 +76,19 @@ window.GmailSubjectEditor = window.GmailSubjectEditor || {};
     const all = Array.from(scope.querySelectorAll(MENU_TOGGLE));
     const body = scope.querySelector(COMPOSE_BODY);
     if (!body) return all;
-    return all.filter(
+    const above = all.filter(
       (toggle) =>
         body.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_PRECEDING
     );
+    // If the header controls turn out to sit outside this root, having nothing
+    // to try is worse than trying the toolbar, so fall back to everything.
+    return above.length > 0 ? above : all;
+  }
+
+  // Normalised so that reflow-driven whitespace churn does not read as an edit.
+  function bodyText(root) {
+    const body = root && root.querySelector(COMPOSE_BODY);
+    return body ? body.textContent.replace(/\s+/g, ' ').trim() : null;
   }
 
   // Menus are sometimes reparented out of the compose, so this searches the
@@ -128,5 +137,6 @@ window.GmailSubjectEditor = window.GmailSubjectEditor || {};
     findMenuToggles,
     findEditSubjectItem,
     isUntouched,
+    bodyText,
   };
 })();
