@@ -54,14 +54,15 @@ window.GmailSubjectEditor = window.GmailSubjectEditor || {};
     return element.closest(COMPOSE_ROOT);
   }
 
-  // Composes that have no subject field, i.e. replies and forwards. Anchored
-  // on the body rather than the menu, because the body is present from the
-  // moment the compose opens whereas the menu is not.
-  function findReplyComposes() {
+  // Every compose on the page, anchored on the body rather than the menu
+  // because the body is present from the moment the compose opens whereas the
+  // menu is not. Deliberately unfiltered: the caller decides what to skip and
+  // says why, so a compose we ignore is still visible in the log.
+  function findComposes() {
     const roots = new Set();
     for (const body of document.querySelectorAll(COMPOSE_BODY)) {
       const root = findComposeRoot(body);
-      if (root && !findSubjectInput(root)) roots.add(root);
+      if (root) roots.add(root);
     }
     return Array.from(roots);
   }
@@ -123,7 +124,7 @@ window.GmailSubjectEditor = window.GmailSubjectEditor || {};
     EDIT_SUBJECT_POSITIONAL,
     findSubjectInput,
     findComposeRoot,
-    findReplyComposes,
+    findComposes,
     findMenuToggles,
     findEditSubjectItem,
     isUntouched,

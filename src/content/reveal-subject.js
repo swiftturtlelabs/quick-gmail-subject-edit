@@ -43,8 +43,11 @@
   let disabled = false;
   let warned = false;
 
+  // console.log rather than console.debug: Chrome files debug output under the
+  // Verbose level, which is off by default, so debug messages are invisible
+  // exactly when someone is trying to work out why nothing happened.
   function log(...args) {
-    console.debug(LOG_PREFIX, ...args);
+    console.log(LOG_PREFIX, ...args);
   }
 
   function warnOnce(message, detail) {
@@ -117,6 +120,12 @@
     simulateClick(toggle);
     const item = await waitFor(() => dom.findEditSubjectItem(root), MENU_BUILD_MS);
     if (!item) {
+      // Log what the menu did contain. If a forward's caret offers different
+      // items than a reply's, this is where that shows up.
+      const opened = Array.from(document.querySelectorAll(dom.MENU_ITEM))
+        .filter((el) => el.offsetParent !== null)
+        .map((el) => el.textContent.trim());
+      log('no Edit subject in the menu from', toggle, '| visible items:', opened);
       close(toggle);
       return false;
     }
@@ -153,8 +162,14 @@
     }
     if (s.done || s.busy || Date.now() < s.nextAt) return false;
 
+    if (!s.seen) {
+      s.seen = true;
+      log('compose seen', root);
+    }
+
     if (dom.findSubjectInput(root)) {
       s.done = true;
+      log('skipping: it already has a subject field', root);
       return false;
     }
 
@@ -165,6 +180,7 @@
     // would be skipped for arriving with its body already full.
     if (!dom.isUntouched(root)) {
       s.done = true;
+      log('skipping: there is already typed content in the body', root);
       return false;
     }
 
@@ -190,7 +206,10 @@
     s.busy = true;
     s.attempts += 1;
     try {
-      log(`attempt ${s.attempts}: trying ${toggles.length} toggle(s) above the body`);
+      log(
+        `attempt ${s.attempts}: ${toggles.length} toggle(s) above the body`,
+        toggles.map((t) => t.getAttribute('aria-label') || t.textContent.trim() || '(unlabelled)')
+      );
       for (const toggle of toggles) {
         if (await revealVia(toggle, root)) {
           s.done = true;
@@ -210,7 +229,7 @@
 
   function revealAll() {
     if (disabled) return;
-    for (const root of dom.findReplyComposes()) {
+    for (const root of dom.findComposes()) {
       reveal(root);
     }
   }
