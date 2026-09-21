@@ -68,21 +68,22 @@ window.GmailSubjectEditor = window.GmailSubjectEditor || {};
   }
 
   // Only the toggles above the body, which is where the recipient-line caret
-  // lives. Everything below the body is the send/formatting toolbar, and
-  // opening those menus just makes menus flash on screen and then reports a
-  // false "no Edit subject anywhere" once the real caret has not rendered yet.
+  // lives, and with no fallback to anything else.
+  //
+  // Below the body is the send and formatting toolbar, whose buttons attach
+  // files, open Drive and insert photos. Activating one of those is not a
+  // harmless wrong guess. Early in a compose's life the toolbar is rendered
+  // while the caret is not, so any fallback to "try everything" fires exactly
+  // when it does the most damage. Finding nothing here means "not ready yet",
+  // and the caller retries.
   function findMenuToggles(root) {
     const scope = root || document;
-    const all = Array.from(scope.querySelectorAll(MENU_TOGGLE));
     const body = scope.querySelector(COMPOSE_BODY);
-    if (!body) return all;
-    const above = all.filter(
+    if (!body) return [];
+    return Array.from(scope.querySelectorAll(MENU_TOGGLE)).filter(
       (toggle) =>
         body.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_PRECEDING
     );
-    // If the header controls turn out to sit outside this root, having nothing
-    // to try is worse than trying the toolbar, so fall back to everything.
-    return above.length > 0 ? above : all;
   }
 
   // Normalised so that reflow-driven whitespace churn does not read as an edit.
@@ -103,11 +104,13 @@ window.GmailSubjectEditor = window.GmailSubjectEditor || {};
     return (scope && search(scope)) || search(document);
   }
 
-  // Quoted replies, forwarded messages and signatures are all content Gmail
-  // put there, not the user. A forward in particular arrives with its whole
-  // body pre-filled, so testing the body verbatim would class every forward as
-  // already written-in and skip it. Strip Gmail's own blocks and see whether
-  // anything the user typed is left.
+  // Second opinion on "has the user written anything", behind the baseline
+  // comparison in reveal-subject.js. Quoted replies, forwarded messages and
+  // signatures are all content Gmail put there, so strip them and see whether
+  // anything is left. This does not catch a forward on its own, because Gmail
+  // does not reliably tag forwarded content with these classes while it is
+  // still in the editor; it exists to cover the case where we first see a
+  // compose too late for the baseline to mean anything.
   //
   // textContent rather than innerText because the clone is detached, which
   // makes innerText fall back to textContent anyway but only after a layout.

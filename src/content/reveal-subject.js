@@ -37,17 +37,25 @@
   const MAX_ATTEMPTS = 8;
   const RETRY_MS = 400;
 
-  // root -> { attempts, nextAt, busy, done }
+  // A compose whose caret never appears would otherwise be re-examined on
+  // every mutation for as long as the tab stays open.
+  const GIVE_UP_MS = 20000;
+
+  // Flip to true when Gmail changes and this needs diagnosing again. Warnings
+  // below are always emitted; this only controls the running commentary, which
+  // is too chatty to inflict on anyone not actively debugging. Note that
+  // console.debug would not do instead, as Chrome files it under Verbose,
+  // which is off by default.
+  const DEBUG = false;
+
+  // root -> { attempts, nextAt, busy, done, seen, firstSeen, baseline }
   const state = new WeakMap();
   let recent = [];
   let disabled = false;
   let warned = false;
 
-  // console.log rather than console.debug: Chrome files debug output under the
-  // Verbose level, which is off by default, so debug messages are invisible
-  // exactly when someone is trying to work out why nothing happened.
   function log(...args) {
-    console.log(LOG_PREFIX, ...args);
+    if (DEBUG) console.log(LOG_PREFIX, ...args);
   }
 
   function warnOnce(message, detail) {
@@ -164,6 +172,7 @@
 
     if (!s.seen) {
       s.seen = true;
+      s.firstSeen = Date.now();
       log('compose seen', root);
     }
 
@@ -197,6 +206,11 @@
     // so let the compose finish expanding rather than burning the budget.
     const toggles = dom.findMenuToggles(root);
     if (toggles.length === 0) {
+      if (Date.now() - s.firstSeen > GIVE_UP_MS) {
+        s.done = true;
+        log('giving up: no menu caret ever appeared above the body', root);
+        return false;
+      }
       s.nextAt = Date.now() + RETRY_MS;
       return false;
     }
