@@ -46,7 +46,7 @@
   // is too chatty to inflict on anyone not actively debugging. Note that
   // console.debug would not do instead, as Chrome files it under Verbose,
   // which is off by default.
-  const DEBUG = false;
+  const DEBUG = true;
 
   // root -> { attempts, nextAt, busy, done, seen, firstSeen, baseline }
   const state = new WeakMap();
@@ -56,6 +56,33 @@
 
   function log(...args) {
     if (DEBUG) console.log(LOG_PREFIX, ...args);
+  }
+
+  // Dumps the layout each decision below is based on: which element we treat
+  // as the compose, how many bodies are inside it, and where every menu button
+  // sits relative to the first of those bodies. Restricting activation to
+  // buttons above the body is the rule that decides whether anything happens
+  // at all, so this reports the inputs to that rule rather than its verdict.
+  function describe(root) {
+    if (!DEBUG) return;
+    const bodies = root.querySelectorAll(dom.COMPOSE_BODY);
+    const body = bodies[0];
+    const toggles = Array.from(root.querySelectorAll(dom.MENU_TOGGLE)).map((t) => ({
+      label: t.getAttribute('aria-label') || t.textContent.trim() || '(unlabelled)',
+      haspopup: t.getAttribute('aria-haspopup'),
+      where: !body
+        ? 'no body in root'
+        : body.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_PRECEDING
+          ? 'ABOVE body'
+          : 'below body',
+      element: t,
+    }));
+    console.log(
+      `${LOG_PREFIX} compose seen | root=<${root.tagName.toLowerCase()} class="${root.className}"> ` +
+        `| bodies in root=${bodies.length} | menu buttons=${toggles.length}`
+    );
+    if (toggles.length) console.table(toggles.map(({ element, ...row }) => row));
+    else console.log(`${LOG_PREFIX} no menu buttons matched`, dom.MENU_TOGGLE);
   }
 
   function warnOnce(message, detail) {
@@ -173,7 +200,7 @@
     if (!s.seen) {
       s.seen = true;
       s.firstSeen = Date.now();
-      log('compose seen', root);
+      describe(root);
     }
 
     if (dom.findSubjectInput(root)) {
