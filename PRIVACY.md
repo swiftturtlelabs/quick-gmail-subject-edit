@@ -1,4 +1,4 @@
-# Privacy Policy — Quick Gmail Subject Edit
+# Privacy Policy — Quick Subject Edit
 
 _Last updated: 21 September 2026_
 

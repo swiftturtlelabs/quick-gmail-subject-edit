@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Quick Gmail Subject Edit",
+  "name": "Quick Subject Edit",
   "version": "1.0.0",
   "homepage_url": "https://github.com/swiftturtlelabs/quick-gmail-subject-edit",
   "description": "Opens Gmail's Edit subject action automatically when you start a reply, so the subject is editable without using the menu.",
