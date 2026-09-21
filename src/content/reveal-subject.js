@@ -29,7 +29,16 @@
   const MENU_BUILD_MS = 400;
   const COMPOSE_BUILD_MS = 2000;
 
-  const handled = new WeakSet();
+  // Gmail expands an inline reply in stages, and the recipient caret is one of
+  // the last parts to render. A single attempt per compose therefore loses the
+  // race and, if we then never look again, the reply only works once something
+  // else makes Gmail rebuild it, such as clicking into the To: field. So a
+  // compose stays eligible until it succeeds or runs out of attempts.
+  const MAX_ATTEMPTS = 8;
+  const RETRY_MS = 400;
+
+  // root -> { attempts, nextAt, busy, done }
+  const state = new WeakMap();
   let recent = [];
   let disabled = false;
   let warned = false;
@@ -113,6 +122,11 @@
     }
 
     log('found Edit subject in menu opened by', toggle);
+
+    // Checked here rather than per attempt, because the runaway case this
+    // guards against is repeated *activation*. Attempts that never find the
+    // item change nothing and must not count against the budget.
+    if (rateLimited()) return false;
     simulateClick(item);
 
     const input = await waitFor(() => dom.findSubjectInput(), COMPOSE_BUILD_MS);
@@ -130,37 +144,68 @@
   }
 
   async function reveal(root) {
-    if (disabled || handled.has(root)) return false;
-    if (dom.findSubjectInput(root)) return false;
+    if (disabled) return false;
 
-    // Gmail's Edit subject discards the reply and rebuilds it as a compose.
-    // InboxSDK reimplements the whole action specifically to carry the body
-    // across, which tells us the native path does not always preserve it.
-    // Firing only on an untouched reply keeps that risk off the table, and
-    // matches the goal of revealing the subject as the reply opens.
-    if (!dom.isEmpty(root)) return false;
+    let s = state.get(root);
+    if (!s) {
+      s = { attempts: 0, nextAt: 0, busy: false, done: false };
+      state.set(root, s);
+    }
+    if (s.done || s.busy || Date.now() < s.nextAt) return false;
 
-    const toggles = dom.findMenuToggles(root);
-    if (toggles.length === 0) {
-      warnOnce('no menu toggles found in this compose; cannot open the menu.', root);
+    if (dom.findSubjectInput(root)) {
+      s.done = true;
       return false;
     }
 
-    handled.add(root);
-    if (rateLimited()) return false;
-
-    log(`trying ${toggles.length} menu toggle(s) in`, root);
-    for (const toggle of toggles) {
-      if (await revealVia(toggle, root)) return true;
-      if (dom.findSubjectInput(root)) return true;
+    // Gmail's Edit subject rebuilds the reply as a compose. It carries the
+    // quoted thread across, but anything the user has typed is theirs to lose,
+    // so we only ever act on a compose they have not written in yet. Quoted
+    // and forwarded blocks do not count as written in, otherwise every forward
+    // would be skipped for arriving with its body already full.
+    if (!dom.isUntouched(root)) {
+      s.done = true;
+      return false;
     }
 
-    warnOnce(
-      'opened every menu in the compose and none contained an Edit subject ' +
-        'item. Run tools/recon.js and check watch() against the caret.',
-      root
-    );
-    return false;
+    // Nothing to click yet. This costs an attempt only in the sense of time,
+    // so let the compose finish expanding rather than burning the budget.
+    const toggles = dom.findMenuToggles(root);
+    if (toggles.length === 0) {
+      s.nextAt = Date.now() + RETRY_MS;
+      return false;
+    }
+
+    if (s.attempts >= MAX_ATTEMPTS) {
+      s.done = true;
+      warnOnce(
+        `gave up after ${MAX_ATTEMPTS} attempts: opened every menu above the ` +
+          'compose body and none contained an Edit subject item. Run ' +
+          'tools/recon.js and check watch() against the caret.',
+        root
+      );
+      return false;
+    }
+
+    s.busy = true;
+    s.attempts += 1;
+    try {
+      log(`attempt ${s.attempts}: trying ${toggles.length} toggle(s) above the body`);
+      for (const toggle of toggles) {
+        if (await revealVia(toggle, root)) {
+          s.done = true;
+          return true;
+        }
+        if (dom.findSubjectInput(root)) {
+          s.done = true;
+          return true;
+        }
+      }
+      s.nextAt = Date.now() + RETRY_MS;
+      return false;
+    } finally {
+      s.busy = false;
+    }
   }
 
   function revealAll() {

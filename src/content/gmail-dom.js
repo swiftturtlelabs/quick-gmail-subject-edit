@@ -66,11 +66,19 @@ window.GmailSubjectEditor = window.GmailSubjectEditor || {};
     return Array.from(roots);
   }
 
-  // Document order, which puts the recipient-line caret ahead of the send and
-  // more-options buttons in the bottom toolbar. Callers try them in turn, so
-  // ordering only affects how many wrong menus we open before the right one.
+  // Only the toggles above the body, which is where the recipient-line caret
+  // lives. Everything below the body is the send/formatting toolbar, and
+  // opening those menus just makes menus flash on screen and then reports a
+  // false "no Edit subject anywhere" once the real caret has not rendered yet.
   function findMenuToggles(root) {
-    return Array.from((root || document).querySelectorAll(MENU_TOGGLE));
+    const scope = root || document;
+    const all = Array.from(scope.querySelectorAll(MENU_TOGGLE));
+    const body = scope.querySelector(COMPOSE_BODY);
+    if (!body) return all;
+    return all.filter(
+      (toggle) =>
+        body.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_PRECEDING
+    );
   }
 
   // Menus are sometimes reparented out of the compose, so this searches the
@@ -85,9 +93,24 @@ window.GmailSubjectEditor = window.GmailSubjectEditor || {};
     return (scope && search(scope)) || search(document);
   }
 
-  function isEmpty(root) {
+  // Quoted replies, forwarded messages and signatures are all content Gmail
+  // put there, not the user. A forward in particular arrives with its whole
+  // body pre-filled, so testing the body verbatim would class every forward as
+  // already written-in and skip it. Strip Gmail's own blocks and see whether
+  // anything the user typed is left.
+  //
+  // textContent rather than innerText because the clone is detached, which
+  // makes innerText fall back to textContent anyway but only after a layout.
+  const GMAIL_OWN_CONTENT =
+    '.gmail_quote, .gmail_quote_container, .gmail_extra, .gmail_signature, ' +
+    '.gmail_attr, blockquote';
+
+  function isUntouched(root) {
     const body = root && root.querySelector(COMPOSE_BODY);
-    return !!body && body.innerText.trim() === '';
+    if (!body) return false;
+    const clone = body.cloneNode(true);
+    for (const block of clone.querySelectorAll(GMAIL_OWN_CONTENT)) block.remove();
+    return clone.textContent.trim() === '';
   }
 
   NS.dom = {
@@ -103,6 +126,6 @@ window.GmailSubjectEditor = window.GmailSubjectEditor || {};
     findReplyComposes,
     findMenuToggles,
     findEditSubjectItem,
-    isEmpty,
+    isUntouched,
   };
 })();
