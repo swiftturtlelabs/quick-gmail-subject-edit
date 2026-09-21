@@ -46,7 +46,7 @@
   // is too chatty to inflict on anyone not actively debugging. Note that
   // console.debug would not do instead, as Chrome files it under Verbose,
   // which is off by default.
-  const DEBUG = true;
+  const DEBUG = false;
 
   // root -> { attempts, nextAt, busy, done, seen, firstSeen, baseline }
   const state = new WeakMap();
